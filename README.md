@@ -21,6 +21,32 @@ scaffolds it. Firsthand intervenes at the workflow level.
 Learn mode is fully interactive in this MVP; Decide/Create/Execute have
 protocol landing pages and ship next on the same session spine.
 
+Live at **[sdforest.site/firsthand](https://sdforest.site/firsthand)**.
+
+## The Autonomy Test
+
+A scored diagnostic, reachable from the home screen as a panel swap rather
+than a separate route. All content is preset — no AI call at any point — so
+every attempt gets the identical stimulus and scores are comparable across
+attempts. Three dimensions:
+
+| Dimension | Measures | Scoring |
+|---|---|---|
+| **Calibration check** | Answer + confidence sealed before the preset AI answer appears, then the verified answer | Brier-style: confidence read as a probability, squared against the outcome. Confident-and-wrong costs the most |
+| **Automation bias probe** | Five AI recommendations, two subtly flawed — accept or flag each | Balanced accuracy, so flagging everything cannot game it. Catch rate and false-alarm rate weigh equally |
+| **Retrieval gap** | One problem solved with a generous AI scaffold; a structurally identical variant ten minutes later with none | Ratio of unaided to assisted rubric points, Laplace-smoothed so it stays defined at zero |
+
+The composite **Autonomy Score** weights these 35/35/30 and leads the
+dashboard with a per-dimension breakdown and a trend line over attempts. It
+stays *provisional* — renormalised over the two closed dimensions — until the
+delayed retrieval probe closes. The ten-minute gap is enforced from a stored
+timestamp, not a session variable, so it survives reloads: reopening the test
+lands straight in the unaided variant once due, and shows a countdown before.
+
+Rubric scoring is self-reported, and the UI says so. Both attempts are scored
+against the identical four criteria, which is what makes the ratio mean
+anything.
+
 ## What's implemented
 
 - **First-pass capture** — non-skippable modal (Escape and outside-click
@@ -48,8 +74,14 @@ Framer Motion · localStorage (no backend in the MVP).
 
 ```bash
 npm install
-npm run dev -- --port 3020   # 3000 is taken on this machine — see D:\projects\PORT_REGISTRY.md
+npm run dev -- --port 3020
 ```
+
+Then open **http://localhost:3020/firsthand** — not the root. `next.config.ts`
+sets `basePath: "/firsthand"` so that routes and `/_next/*` assets share one
+prefix, which is what lets a single rewrite pair front the app at
+`sdforest.site/firsthand` without 404-ing every stylesheet and chunk. The root
+path is not served.
 
 `npm run build` produces a fully static export-ready build (all routes
 prerender).
