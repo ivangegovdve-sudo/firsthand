@@ -74,8 +74,50 @@ export interface Session {
   recallInterval?: RecallInterval;
 }
 
+/* ---------------- Autonomy Test ---------------- */
+
+export interface CalibrationItemResult {
+  itemId: string;
+  /** Index of the option chosen, before any AI output was visible */
+  choice: number;
+  correct: boolean;
+  /** 1–5, sealed with the answer */
+  confidence: number;
+}
+
+export interface BiasProbeResult {
+  itemId: string;
+  flagged: boolean;
+  isFlawed: boolean;
+}
+
+export interface RetrievalProbe {
+  /** The variant served for the unaided attempt */
+  variantId: string;
+  assistedAt: string;
+  /** When the unaided variant unlocks — assistedAt + the delay */
+  dueAt: string;
+  /** Rubric criteria met, out of RETRIEVAL_RUBRIC.length */
+  assistedPoints: number;
+  assistedAnswer: string;
+  unaidedPoints?: number;
+  unaidedAnswer?: string;
+  completedAt?: string;
+}
+
+export interface AutonomyTestResult {
+  id: string;
+  startedAt: string;
+  /** End of the first sitting — the retrieval probe closes later */
+  completedAt: string;
+  calibration: CalibrationItemResult[];
+  bias: BiasProbeResult[];
+  retrieval: RetrievalProbe;
+}
+
 export interface StoreShape {
   version: 1;
   sessions: Session[];
   recallTests: RecallTest[];
+  autonomyTests: AutonomyTestResult[];
 }

@@ -15,8 +15,16 @@ import {
   YAxis,
 } from "recharts";
 import { Button } from "@/components/ui/button";
+import {
+  RETRIEVAL_RUBRIC,
+  biasScore,
+  calibrationScore,
+  scoreBand,
+  scoreTest,
+} from "@/lib/autonomy";
 import { CHART, LAST_WEEK, THIS_WEEK, WEEKS } from "@/lib/mock-data";
 import { completeRecall, useStore } from "@/lib/store";
+import type { AutonomyTestResult } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const MONO = "var(--font-geist-mono), monospace";
@@ -28,17 +36,19 @@ function ChartTooltip({
   payload,
   label,
   suffix = "",
+  labelPrefix = "Week of",
 }: {
   active?: boolean;
   payload?: Array<{ name?: string; value?: number | string; color?: string }>;
   label?: string;
   suffix?: string;
+  labelPrefix?: string;
 }) {
   if (!active || !payload?.length) return null;
   return (
     <div className="border border-border bg-popover px-3 py-2 shadow-none">
       <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-        Week of {label}
+        {labelPrefix} {label}
       </p>
       {payload.map((entry, i) => (
         <p key={i} className="mt-1 flex items-center gap-2 text-sm">
@@ -129,6 +139,229 @@ function ChartCard({
       </div>
       <p className="mt-1 mb-4 text-xs leading-5 text-muted-foreground">{question}</p>
       <div className="h-52">{children}</div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Autonomy score — real data from the test, not sample                */
+/* ------------------------------------------------------------------ */
+
+function AutonomyDimension({
+  label,
+  score,
+  detail,
+}: {
+  label: string;
+  score: number | null;
+  detail: string;
+}) {
+  return (
+    <div className="border-b border-border py-3.5">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+          {label}
+        </span>
+        <span className="font-mono tabular-nums">
+          {score === null ? "—" : score}
+        </span>
+      </div>
+      <div className="mt-2 h-1 w-full bg-border" role="presentation">
+        <div
+          className="h-1 bg-primary"
+          style={{ width: `${score === null ? 0 : score}%` }}
+        />
+      </div>
+      <p className="mt-1.5 text-xs leading-5 text-muted-foreground">{detail}</p>
+    </div>
+  );
+}
+
+function AutonomyTrend({ tests }: { tests: AutonomyTestResult[] }) {
+  const data = tests.map((t, i) => ({
+    attempt: `#${i + 1}`,
+    score: scoreTest(t).composite,
+    date: new Date(t.startedAt).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+    }),
+  }));
+
+  if (data.length < 2) {
+    return (
+      <div className="flex h-full min-h-40 items-center border border-border p-5">
+        <p className="max-w-sm text-sm leading-6 text-muted-foreground">
+          One attempt on record. A single autonomy score is a reading, not a
+          trend — take the test again in a week and this becomes a line.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-52 border border-border p-5">
+      <p className="mb-3 font-mono text-[11px] uppercase tracking-[0.16em] text-foreground">
+        Autonomy score over attempts
+      </p>
+      <div className="h-[calc(100%-2rem)]">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+            <CartesianGrid stroke={CHART.grid} vertical={false} />
+            <XAxis
+              dataKey="date"
+              tick={AXIS_TICK}
+              tickLine={false}
+              axisLine={{ stroke: CHART.grid }}
+            />
+            <YAxis
+              domain={[0, 100]}
+              tick={AXIS_TICK}
+              tickLine={false}
+              axisLine={false}
+              width={46}
+            />
+            <Tooltip
+              content={<ChartTooltip labelPrefix="Taken" />}
+              cursor={{ stroke: CHART.reference }}
+            />
+            <Line
+              type="monotone"
+              dataKey="score"
+              name="Autonomy score"
+              stroke={CHART.signal}
+              strokeWidth={2}
+              dot={{ r: 3, fill: CHART.signal, strokeWidth: 0 }}
+              activeDot={{ r: 4 }}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+function AutonomyBlock() {
+  const store = useStore();
+  const [mounted, setMounted] = useState(false);
+  const [now, setNow] = useState(0);
+
+  useEffect(() => {
+    setMounted(true);
+    setNow(Date.now());
+  }, []);
+
+  if (!mounted) return null;
+
+  const tests = store.autonomyTests;
+  const latest = tests.length > 0 ? tests[tests.length - 1] : undefined;
+
+  if (!latest) {
+    return (
+      <section aria-label="Autonomy score" className="mb-14">
+        <div className="rule-tick flex flex-wrap items-center justify-between gap-4 pt-4">
+          <div className="max-w-lg">
+            <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+              Autonomy score
+            </p>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">
+              No attempts yet. The test scores calibration, automation bias,
+              and the gap between your assisted and unaided work into one
+              number — the only figure on this page that starts as real data.
+            </p>
+          </div>
+          <Button asChild>
+            <Link href="/">Take the test</Link>
+          </Button>
+        </div>
+      </section>
+    );
+  }
+
+  const score = scoreTest(latest);
+  const previous =
+    tests.length > 1 ? scoreTest(tests[tests.length - 2]).composite : null;
+  const delta = previous === null ? null : score.composite - previous;
+  const cal = calibrationScore(latest.calibration);
+  const probe = biasScore(latest.bias);
+  const r = latest.retrieval;
+  const probeDue =
+    !r.completedAt && now >= new Date(r.dueAt).getTime();
+
+  return (
+    <section aria-label="Autonomy score" className="mb-14">
+      <div className="rule-tick flex items-baseline justify-between pt-4 pb-6">
+        <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+          Autonomy score — your data
+        </p>
+        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+          {tests.length} attempt{tests.length === 1 ? "" : "s"} on record
+        </p>
+      </div>
+
+      {probeDue && (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border border-primary/60 bg-primary/[0.06] p-4">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-primary">
+              Retrieval probe due — the score is still provisional
+            </p>
+            <p className="mt-1 text-sm">
+              Ten minutes are up. The unaided variant is unlocked.
+            </p>
+          </div>
+          <Button asChild size="sm">
+            <Link href="/">Finish the test</Link>
+          </Button>
+        </div>
+      )}
+
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,260px)_minmax(0,1fr)_minmax(0,1.1fr)]">
+        <div>
+          <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+            Composite
+          </p>
+          <p className="mt-2 font-mono text-6xl tabular-nums leading-none tracking-tight text-primary">
+            {score.composite}
+            <span className="text-2xl text-muted-foreground">/100</span>
+          </p>
+          <p className="font-display mt-3 text-2xl italic tracking-tight">
+            {score.provisional ? "Provisional" : scoreBand(score.composite)}
+          </p>
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">
+            {delta === null
+              ? "First attempt — the baseline you will be measured against."
+              : `${delta > 0 ? "+" : ""}${delta} vs your previous attempt`}
+            {score.provisional
+              ? " · the retrieval gap is still open, so this number will move."
+              : ""}
+          </p>
+        </div>
+
+        <div className="flex flex-col">
+          <AutonomyDimension
+            label="Calibration"
+            score={score.calibration}
+            detail={`${cal.correct}/${cal.total} correct · confidence ${
+              cal.gap > 0 ? `+${cal.gap} ahead of` : cal.gap < 0 ? `${cal.gap} behind` : "level with"
+            } accuracy`}
+          />
+          <AutonomyDimension
+            label="Automation bias"
+            score={score.bias}
+            detail={`${probe.caught}/${probe.errors} planted errors caught · ${probe.falseFlags} false alarm${probe.falseFlags === 1 ? "" : "s"}`}
+          />
+          <AutonomyDimension
+            label="Retrieval gap"
+            score={score.retention}
+            detail={
+              score.retention === null
+                ? `Assisted ${r.assistedPoints}/${RETRIEVAL_RUBRIC.length} · unaided variant pending`
+                : `${r.unaidedPoints}/${RETRIEVAL_RUBRIC.length} unaided vs ${r.assistedPoints}/${RETRIEVAL_RUBRIC.length} assisted`
+            }
+          />
+        </div>
+
+        <AutonomyTrend tests={tests} />
+      </div>
     </section>
   );
 }
@@ -248,10 +481,18 @@ export default function DashboardPage() {
             your confidence tracks your record.
           </p>
         </div>
+      </header>
+
+      <AutonomyBlock />
+
+      <div className="rule-tick flex flex-wrap items-baseline justify-between gap-3 pt-4 pb-6">
+        <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+          Weekly training metrics
+        </p>
         <p className="border border-border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
           Sample data — 8 weeks
         </p>
-      </header>
+      </div>
 
       <div className="grid gap-x-8 gap-y-6 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile

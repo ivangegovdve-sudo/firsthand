@@ -1,23 +1,47 @@
 "use client";
 
-import { useSyncExternalStore, useCallback } from "react";
-import type { Session, RecallTest, StoreShape, RecallInterval } from "./types";
+import { useSyncExternalStore } from "react";
+import type {
+  AutonomyTestResult,
+  Session,
+  RecallTest,
+  StoreShape,
+  RecallInterval,
+} from "./types";
 
 const KEY = "firsthand.v1";
 
-const EMPTY: StoreShape = { version: 1, sessions: [], recallTests: [] };
+const EMPTY: StoreShape = {
+  version: 1,
+  sessions: [],
+  recallTests: [],
+  autonomyTests: [],
+};
 
 let cache: StoreShape | null = null;
 const listeners = new Set<() => void>();
+
+/**
+ * Records written before a collection existed are missing that key, so every
+ * array is defaulted on read rather than trusted from the parsed blob.
+ */
+function normalize(parsed: Partial<StoreShape> | null): StoreShape {
+  return {
+    version: 1,
+    sessions: parsed?.sessions ?? [],
+    recallTests: parsed?.recallTests ?? [],
+    autonomyTests: parsed?.autonomyTests ?? [],
+  };
+}
 
 function read(): StoreShape {
   if (cache) return cache;
   if (typeof window === "undefined") return EMPTY;
   try {
     const raw = window.localStorage.getItem(KEY);
-    cache = raw ? (JSON.parse(raw) as StoreShape) : { ...EMPTY };
+    cache = normalize(raw ? (JSON.parse(raw) as Partial<StoreShape>) : null);
   } catch {
-    cache = { ...EMPTY };
+    cache = normalize(null);
   }
   return cache;
 }
@@ -94,6 +118,49 @@ export function completeRecall(id: string, passed: boolean) {
     recallTests: s.recallTests.map((t) =>
       t.id === id
         ? { ...t, completedAt: new Date().toISOString(), passed }
+        : t
+    ),
+  });
+}
+
+/* ---------------- Autonomy Test ---------------- */
+
+export function saveAutonomyTest(result: AutonomyTestResult) {
+  const s = read();
+  const idx = s.autonomyTests.findIndex((t) => t.id === result.id);
+  const autonomyTests =
+    idx === -1
+      ? [...s.autonomyTests, result]
+      : s.autonomyTests.map((t) => (t.id === result.id ? result : t));
+  write({ ...s, autonomyTests });
+}
+
+/** The most recent test whose delayed retrieval probe is still open. */
+export function openRetrievalProbe(): AutonomyTestResult | undefined {
+  return read()
+    .autonomyTests.filter((t) => !t.retrieval.completedAt)
+    .slice(-1)[0];
+}
+
+export function completeRetrievalProbe(
+  testId: string,
+  unaidedPoints: number,
+  unaidedAnswer: string
+) {
+  const s = read();
+  write({
+    ...s,
+    autonomyTests: s.autonomyTests.map((t) =>
+      t.id === testId
+        ? {
+            ...t,
+            retrieval: {
+              ...t.retrieval,
+              unaidedPoints,
+              unaidedAnswer,
+              completedAt: new Date().toISOString(),
+            },
+          }
         : t
     ),
   });
