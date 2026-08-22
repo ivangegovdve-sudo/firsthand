@@ -21,7 +21,8 @@ scaffolds it. Firsthand intervenes at the workflow level.
 Learn mode is fully interactive in this MVP; Decide/Create/Execute have
 protocol landing pages and ship next on the same session spine.
 
-Live at **[sdforest.site/firsthand](https://sdforest.site/firsthand)**.
+Firsthand is a private application. It is not intended to be exposed through
+a public proxy or rewrite.
 
 ## The Autonomy Test
 
@@ -72,19 +73,38 @@ Framer Motion · localStorage (no backend in the MVP).
 
 ## Run
 
+The server requires three deployment environment variables:
+
+- `FIRSTHAND_ACCESS_KEY_SHA256`: the canonical base64url encoding of the
+  32-byte SHA-256 verifier for a high-entropy access key.
+- `FIRSTHAND_SESSION_SECRET`: the canonical base64url encoding of an
+  independent 32-byte random signing secret.
+- `FIRSTHAND_ORIGIN`: the exact upstream HTTPS origin, with no path, query, or
+  fragment.
+
+Install those values directly in the deployment platform. Do not add them to
+the repository, documentation, command output, or client-visible variables.
+Missing, unreadable, empty, malformed, non-independent, or structurally
+invalid configuration returns a bodyless unavailable response.
+
 ```bash
 npm install
-npm run dev -- --port 3020
+npm run dev -- --experimental-https --port 3020
 ```
 
-Then open **http://localhost:3020/firsthand** — not the root. `next.config.ts`
-sets `basePath: "/firsthand"` so that routes and `/_next/*` assets share one
-prefix, which is what lets a single rewrite pair front the app at
-`sdforest.site/firsthand` without 404-ing every stylesheet and chunk. The root
-path is not served.
+Use a local HTTPS origin that exactly matches `FIRSTHAND_ORIGIN`, then open its
+`/firsthand` path. The root path is not served. `next.config.ts` keeps routes
+and framework assets under the same base path.
 
-`npm run build` produces a fully static export-ready build (all routes
-prerender).
+`npm run build` produces the production server build. The signed-session Proxy
+must remain enabled; this application is not a static-export target.
+
+The Proxy is defense in depth for broad route and asset coverage. Every future
+Route Handler or Server Action that reads or mutates protected state must also
+perform a direct signed-session check. Mutations must additionally require the
+exact configured HTTPS origin and host; use `authorizeMutationRequest` for
+future request-based mutation handlers rather than relying on UI visibility or
+Proxy matching.
 
 ## Design
 

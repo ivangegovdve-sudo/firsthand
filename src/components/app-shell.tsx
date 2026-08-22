@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { LogoutForm } from "@/components/logout-form";
 
 const NAV = [
   { href: "/", label: "Modes" },
@@ -49,6 +50,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </Link>
               );
             })}
+            <LogoutForm />
           </nav>
         </div>
       </header>
