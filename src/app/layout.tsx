@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     "Use AI without losing your own thinking. Firsthand structures every AI interaction so your judgment comes first.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
       lang="en"

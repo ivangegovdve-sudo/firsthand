@@ -84,7 +84,8 @@ export default function LearnPage() {
   const router = useRouter();
   const store = useStore();
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  useEffect(() => // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true), []);
 
   const mode = getMode("learn")!;
   const active = mounted
