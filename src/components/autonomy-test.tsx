@@ -335,6 +335,7 @@ export function AutonomyTest({ onExit }: { onExit: () => void }) {
    */
   useEffect(() => {
     const open = openRetrievalProbe();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setNow(Date.now());
     if (open) {
       setTest(open);
@@ -350,6 +351,7 @@ export function AutonomyTest({ onExit }: { onExit: () => void }) {
   /** Both steps that show a countdown need a live clock, not the mount time. */
   useEffect(() => {
     if (step !== "probe-wait" && step !== "results") return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setNow(Date.now());
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);

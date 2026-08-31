@@ -191,6 +191,7 @@ export default function LearnSessionPage() {
   const [justSealed, setJustSealed] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
     const active = activeSession("learn");
     if (active) setSessionId(active.id);

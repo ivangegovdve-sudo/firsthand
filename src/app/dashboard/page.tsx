@@ -246,6 +246,7 @@ function AutonomyBlock() {
   const [now, setNow] = useState(0);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
     setNow(Date.now());
   }, []);
@@ -371,6 +372,7 @@ function RecallStrip() {
   const [mounted, setMounted] = useState(false);
   const [now, setNow] = useState(0);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
     setNow(Date.now());
   }, []);
